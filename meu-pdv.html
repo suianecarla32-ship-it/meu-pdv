@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Meu primeiro PDV</title>
+  <style>
+    @media print {
+      #pdv { display: none; }
+      #comprovante { display: block !important; }
+    }
+
+    table { border-collapse: collapse; margin-top: 8px; }
+    th, td { border: 1px solid black; padding: 6px; text-align: left; }
+  </style>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #eef3f8;
+    color: #243247;
+    font-family: Arial, sans-serif;
+  }
+
+  #pdv {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 28px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 5px 20px #19324a1c;
+  }
+
+  h1 {
+    color: #174a7e;
+  }
+
+  h2, h3 {
+    color: #285f91;
+  }
+
+  label {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 8px 12px 8px 0;
+    font-weight: bold;
+  }
+
+  input, select {
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid #b8c7d6;
+    border-radius: 7px;
+    font: inherit;
+  }
+
+  input:focus, select:focus {
+    outline: 2px solid #70a9e3;
+    border-color: #3578b8;
+  }
+
+  button {
+    min-height: 38px;
+    margin: 6px 6px 6px 0;
+    padding: 8px 14px;
+    border: 0;
+    border-radius: 7px;
+    background: #2369a6;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #174a7e;
+  }
+
+  li {
+    margin: 8px 0;
+  }
+
+  section {
+    margin: 18px 0;
+    padding: 14px;
+    border-radius: 10px;
+    background: #f4f7fb;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+  }
+
+  th, td {
+    padding: 9px;
+    border: 1px solid #cbd6e0;
+    text-align: left;
+  }
+
+  th {
+    background: #dceaf6;
+    color: #174a7e;
+  }
+
+  @media (max-width: 640px) {
+    body {
+      padding: 10px;
+    }
+
+    #pdv {
+      padding: 16px;
+    }
+
+    label {
+      display: flex;
+      width: 100%;
+    }
+
+    input, select {
+      width: 100%;
+    }
+
+    table {
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 5px;
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="pdv">
+    <h1>Meu primeiro PDV</h1>
+
+    <label>Produto:
+      <input id="produto" placeholder="Ex.: Café">
+    </label>
+
+    <label>Preço unitário:
+      <input id="preco" type="number" step="0.01" placeholder="Ex.: 5,00">
+    </label>
+
+    <label>Quantidade:
+      <input id="quantidade" type="number" min="1" value="1">
+    </label>
+
+    <button onclick="adicionar()">Adicionar à venda</button>
+    <button onclick="limparVenda()">Limpar venda</button>
+
+    <h2>Itens da venda</h2>
+    <ul id="itens"></ul>
+
+    <p>Subtotal: R$ <span id="subtotal">0,00</span></p>
+
+    <label>Desconto (%):
+      <input id="desconto" type="number" min="0" max="100" step="1"
+             value="0" oninput="atualizarTotal()">
+    </label>
+
+    <h2>Total a pagar: R$ <span id="total">0,00</span></h2>
+
+    <label>Forma de pagamento:
+      <select id="forma">
+        <option value="dinheiro">Dinheiro</option>
+        <option value="pix">Pix</option>
+        <option value="cartao">Cartão</option>
+      </select>
+    </label>
+
+    <p>
+      <label>Valor recebido:
+        <input id="recebido" type="number" step="0.01" placeholder="Ex.: 20,00">
+      </label>
+    </p>
+
+    <button onclick="conferirPagamento()">Conferir pagamento</button>
+    <button onclick="imprimirComprovante()">Imprimir resumo</button>
+    <button onclick="salvarVenda()">Salvar venda no histórico</button>
+    <h2 id="resultado"></h2>
+
+    <h2>Histórico de vendas</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Itens</th>
+          <th>Desconto</th>
+          <th>Total</th>
+          <th>Pagamento escolhido</th>
+        </tr>
+      </thead>
+      <tbody id="historico"></tbody>
+    </table>
+  </div>
+
+  <div id="comprovante" style="display:none"></div>
+
+  <script>
+    let total = 0;
+    let vendaSalva = false;
+
+    function obterDesconto() {
+      const campo = document.getElementById("desconto");
+      let desconto = Number(campo.value);
+
+      if (!Number.isFinite(desconto) || desconto < 0) desconto = 0;
+      if (desconto > 100) desconto = 100;
+
+      campo.value = desconto;
+      return desconto;
+    }
+
+    function totalFinal() {
+      return total * (1 - obterDesconto() / 100);
+    }
+
+    function atualizarTotal() {
+      document.getElementById("subtotal").textContent =
+        total.toFixed(2).replace(".", ",");
+      document.getElementById("total").textContent =
+        totalFinal().toFixed(2).replace(".", ",");
+    }
+
+    function adicionar() {
+      if (vendaSalva) {
+        alert("Clique em Limpar venda antes de começar outra.");
+        return;
+      }
+
+      const produto = document.getElementById("produto").value.trim();
+      const preco = Number(document.getElementById("preco").value);
+      const quantidade = Number(document.getElementById("quantidade").value);
+
+      if (!produto || preco <= 0 || !Number.isInteger(quantidade) || quantidade < 1) {
+        alert("Digite o produto, um preço maior que zero e uma quantidade válida.");
+        return;
+      }
+
+      const subtotalItem = preco * quantidade;
+      const item = document.createElement("li");
+      item.dataset.subtotal = subtotalItem;
+      item.appendChild(document.createTextNode(
+        quantidade + " x " + produto + " — R$ " +
+        subtotalItem.toFixed(2).replace(".", ",") + " "
+      ));
+
+      const botaoRemover = document.createElement("button");
+      botaoRemover.textContent = "Remover";
+      botaoRemover.onclick = function() {
+        removerItem(item);
+      };
+      item.appendChild(botaoRemover);
+
+      document.getElementById("itens").appendChild(item);
+      total += subtotalItem;
+      atualizarTotal();
+
+      document.getElementById("produto").value = "";
+      document.getElementById("preco").value = "";
+      document.getElementById("quantidade").value = "1";
+      document.getElementById("resultado").textContent = "";
+    }
+
+    function removerItem(item) {
+      if (vendaSalva) {
+        alert("Esta venda já foi salva. Clique em Limpar venda para começar outra.");
+        return;
+      }
+
+      total -= Number(item.dataset.subtotal);
+      item.remove();
+      atualizarTotal();
+      document.getElementById("resultado").textContent = "";
+    }
+
+    function conferirPagamento() {
+      const forma = document.getElementById("forma").value;
+      const resultado = document.getElementById("resultado");
+      const valor = totalFinal();
+
+      if (total <= 0) {
+        resultado.textContent = "Adicione um produto antes de conferir o pagamento.";
+        return;
+      }
+
+      if (forma === "dinheiro") {
+        const recebido = Number(document.getElementById("recebido").value);
+
+        if (recebido < valor) {
+          resultado.textContent = "O valor recebido é menor que o total da venda.";
+          return;
+        }
+
+        resultado.textContent =
+          "Pagamento em dinheiro. Troco: R$ " +
+          (recebido - valor).toFixed(2).replace(".", ",");
+      } else if (forma === "pix") {
+        resultado.textContent =
+          "Forma escolhida: Pix. Confirme o recebimento antes de encerrar a venda.";
+      } else {
+        resultado.textContent =
+          "Forma escolhida: cartão. Confirme o pagamento antes de encerrar a venda.";
+      }
+    }
+
+    function imprimirComprovante() {
+      if (total <= 0) {
+        alert("Adicione um produto antes de imprimir o resumo.");
+        return;
+      }
+
+      const forma = document.getElementById("forma").value;
+      const valor = totalFinal();
+      const desconto = obterDesconto();
+      let detalhes = "Forma escolhida: " + forma + ".";
+
+      if (forma === "dinheiro") {
+        const recebido = Number(document.getElementById("recebido").value);
+
+        if (recebido < valor) {
+          alert("Informe um valor recebido igual ou maior que o total.");
+          return;
+        }
+
+        detalhes =
+          "Forma: Dinheiro<br>" +
+          "Valor recebido: R$ " + recebido.toFixed(2).replace(".", ",") + "<br>" +
+          "Troco: R$ " + (recebido - valor).toFixed(2).replace(".", ",");
+      } else {
+        detalhes += "<br>Confirme o recebimento no aplicativo ou na maquininha.";
+      }
+
+      const listaClonada = document.getElementById("itens").cloneNode(true);
+      listaClonada.querySelectorAll("button").forEach(botao => botao.remove());
+
+      document.getElementById("comprovante").innerHTML =
+        "<h1>Resumo da venda</h1>" +
+        "<p>" + new Date().toLocaleString("pt-BR") + "</p>" +
+        "<ul>" + listaClonada.innerHTML + "</ul>" +
+        "<p>Subtotal: R$ " + total.toFixed(2).replace(".", ",") + "</p>" +
+        "<p>Desconto: " + desconto + "%</p>" +
+        "<h2>Total: R$ " + valor.toFixed(2).replace(".", ",") + "</h2>" +
+        "<p>" + detalhes + "</p>" +
+        "<p>Resumo de treinamento — não é documento fiscal.</p>";
+
+      document.getElementById("comprovante").style.display = "block";
+      window.print();
+    }
+
+    function salvarVenda() {
+      if (total <= 0) {
+        alert("Adicione um produto antes de salvar a venda.");
+        return;
+      }
+
+      if (vendaSalva) {
+        alert("Esta venda já foi salva. Clique em Limpar venda para começar outra.");
+        return;
+      }
+
+      const forma = document.getElementById("forma").value;
+      const valor = totalFinal();
+      const recebido = Number(document.getElementById("recebido").value);
+
+      if (forma === "dinheiro" && recebido < valor) {
+        alert("Informe um valor recebido igual ou maior que o total.");
+        return;
+      }
+
+      const vendas = JSON.parse(localStorage.getItem("historicoPDV") || "[]");
+      const itens = Array.from(document.querySelectorAll("#itens li"))
+        .map(item => item.firstChild.textContent.trim());
+
+      vendas.unshift({
+        data: new Date().toLocaleString("pt-BR"),
+        itens: itens.join("; "),
+        desconto: obterDesconto() + "%",
+        total: "R$ " + valor.toFixed(2).replace(".", ","),
+        forma: forma
+      });
+
+      localStorage.setItem("historicoPDV", JSON.stringify(vendas));
+      vendaSalva = true;
+      document.getElementById("desconto").disabled = true;
+      mostrarHistorico();
+
+      document.getElementById("resultado").textContent =
+        "Venda salva no histórico deste navegador.";
+    }
+
+    function mostrarHistorico() {
+      const vendas = JSON.parse(localStorage.getItem("historicoPDV") || "[]");
+      const corpo = document.getElementById("historico");
+      corpo.innerHTML = "";
+
+      vendas.forEach(venda => {
+        const linha = document.createElement("tr");
+        [venda.data, venda.itens, venda.desconto || "0%",
+         venda.total, venda.forma].forEach(texto => {
+          const celula = document.createElement("td");
+          celula.textContent = texto;
+          linha.appendChild(celula);
+        });
+        corpo.appendChild(linha);
+      });
+    }
+
+    function limparVenda() {
+      total = 0;
+      vendaSalva = false;
+      document.getElementById("itens").innerHTML = "";
+      document.getElementById("desconto").value = "0";
+      document.getElementById("desconto").disabled = false;
+      document.getElementById("recebido").value = "";
+      document.getElementById("resultado").textContent = "";
+      document.getElementById("comprovante").style.display = "none";
+      atualizarTotal();
+    }
+
+    mostrarHistorico();
+    atualizarTotal();
+  </script>
+<script>
+  const catalogoPDV = JSON.parse(localStorage.getItem("catalogoProdutosPDV") || "[]");
+
+  const secaoCatalogo = document.createElement("section");
+  secaoCatalogo.innerHTML = `
+    <h2>Cadastro de produtos</h2>
+    <label>Nome:
+      <input id="nomeCatalogo" placeholder="Ex.: Leite">
+    </label>
+    <label>Preço:
+      <input id="precoCatalogo" type="number" step="0.01" placeholder="Ex.: 6,00">
+    </label>
+    <button type="button" id="botaoCadastrarProduto">Cadastrar produto</button>
+    <p id="mensagemCatalogo"></p>
+    <label>Usar produto cadastrado:
+      <select id="produtoCadastrado">
+        <option value="">Selecione um produto</option>
+      </select>
+    </label>
+  `;
+
+  const pdv = document.getElementById("pdv");
+  pdv.insertBefore(secaoCatalogo, pdv.querySelector("label"));
+
+  function atualizarCatalogo() {
+    const seletor = document.getElementById("produtoCadastrado");
+    seletor.innerHTML = '<option value="">Selecione um produto</option>';
+
+    catalogoPDV.forEach((produto, indice) => {
+      const opcao = document.createElement("option");
+      opcao.value = indice;
+      opcao.textContent =
+        produto.nome + " — R$ " +
+        Number(produto.preco).toFixed(2).replace(".", ",");
+      seletor.appendChild(opcao);
+    });
+  }
+
+  document.getElementById("botaoCadastrarProduto").addEventListener("click", function() {
+    const nome = document.getElementById("nomeCatalogo").value.trim();
+    const preco = Number(document.getElementById("precoCatalogo").value);
+    const mensagem = document.getElementById("mensagemCatalogo");
+
+    if (!nome || preco <= 0) {
+      mensagem.textContent = "Digite o nome e um preço maior que zero.";
+      return;
+    }
+
+    const existente = catalogoPDV.find(
+      produto => produto.nome.toLowerCase() === nome.toLowerCase()
+    );
+
+    if (existente) {
+      existente.preco = preco;
+      mensagem.textContent = "Preço do produto atualizado.";
+    } else {
+      catalogoPDV.push({ nome: nome, preco: preco });
+      mensagem.textContent = "Produto cadastrado.";
+    }
+
+    localStorage.setItem("catalogoProdutosPDV", JSON.stringify(catalogoPDV));
+    atualizarCatalogo();
+    document.getElementById("nomeCatalogo").value = "";
+    document.getElementById("precoCatalogo").value = "";
+  });
+
+  document.getElementById("produtoCadastrado").addEventListener("change", function() {
+    const indice = this.value;
+    if (indice === "") return;
+
+    document.getElementById("produto").value = catalogoPDV[indice].nome;
+    document.getElementById("preco").value = catalogoPDV[indice].preco;
+  });
+
+  atualizarCatalogo();
+</script>
+<script>
+  const secaoEstoque = document.createElement("section");
+  secaoEstoque.innerHTML = `
+    <h2>Estoque</h2>
+    <label>Quantidade a adicionar:
+      <input id="quantidadeEstoque" type="number" min="1" step="1" value="1">
+    </label>
+    <button type="button" id="botaoAdicionarEstoque">Adicionar ao estoque</button>
+    <p id="mensagemEstoque"></p>
+  `;
+
+  const areaCatalogoParaEstoque = document.querySelector("#pdv section");
+  areaCatalogoParaEstoque.parentNode.insertBefore(secaoEstoque, areaCatalogoParaEstoque.nextSibling);
+
+  catalogoPDV.forEach(produto => {
+    if (!Number.isInteger(produto.estoque)) produto.estoque = 0;
+  });
+  localStorage.setItem("catalogoProdutosPDV", JSON.stringify(catalogoPDV));
+
+  const atualizarCatalogoOriginal = window.atualizarCatalogo;
+  window.atualizarCatalogo = function() {
+    atualizarCatalogoOriginal();
+
+    const seletor = document.getElementById("produtoCadastrado");
+    Array.from(seletor.options).forEach((opcao, indice) => {
+      if (indice > 0) {
+        const produto = catalogoPDV[indice - 1];
+        opcao.textContent += " — estoque: " + produto.estoque;
+      }
+    });
+
+    atualizarMensagemEstoque();
+  };
+
+  function atualizarMensagemEstoque() {
+    const seletor = document.getElementById("produtoCadastrado");
+    const indice = seletor.value;
+    const mensagem = document.getElementById("mensagemEstoque");
+
+    if (indice === "") {
+      mensagem.textContent = "Selecione um produto para ver ou adicionar estoque.";
+      return;
+    }
+
+    mensagem.textContent =
+      "Estoque disponível: " + catalogoPDV[indice].estoque + " unidade(s).";
+  }
+
+  document.getElementById("produtoCadastrado").addEventListener(
+    "change",
+    atualizarMensagemEstoque
+  );
+
+  document.getElementById("botaoAdicionarEstoque").addEventListener("click", function() {
+    const indice = document.getElementById("produtoCadastrado").value;
+    const quantidade = Number(document.getElementById("quantidadeEstoque").value);
+
+    if (indice === "" || !Number.isInteger(quantidade) || quantidade < 1) {
+      document.getElementById("mensagemEstoque").textContent =
+        "Selecione um produto e informe uma quantidade inteira maior que zero.";
+      return;
+    }
+
+    catalogoPDV[indice].estoque += quantidade;
+    localStorage.setItem("catalogoProdutosPDV", JSON.stringify(catalogoPDV));
+    document.getElementById("quantidadeEstoque").value = "1";
+    atualizarCatalogo();
+  });
+
+  const adicionarOriginal = window.adicionar;
+  window.adicionar = function() {
+    const nome = document.getElementById("produto").value.trim();
+    const quantidade = Number(document.getElementById("quantidade").value);
+    const produto = catalogoPDV.find(
+      item => item.nome.toLowerCase() === nome.toLowerCase()
+    );
+
+    if (!produto) {
+      alert("Selecione um produto cadastrado para controlar o estoque.");
+      return;
+    }
+
+    const jaAdicionado = Array.from(document.querySelectorAll("#itens li"))
+      .reduce((soma, item) => {
+        const texto = item.firstChild.textContent;
+        const correspondencia = /^(\d+)\s+x\s+(.+?)\s+—/.exec(texto);
+        if (correspondencia &&
+            correspondencia[2].toLowerCase() === produto.nome.toLowerCase()) {
+          return soma + Number(correspondencia[1]);
+        }
+        return soma;
+      }, 0);
+
+    if (jaAdicionado + quantidade > produto.estoque) {
+      alert("Estoque insuficiente. Disponível: " + produto.estoque + " unidade(s).");
+      return;
+    }
+
+    adicionarOriginal();
+  };
+
+  const salvarVendaOriginal = window.salvarVenda;
+  window.salvarVenda = function() {
+    const antes = JSON.parse(localStorage.getItem("historicoPDV") || "[]").length;
+    const itensVenda = Array.from(document.querySelectorAll("#itens li"))
+      .map(item => {
+        const texto = item.firstChild.textContent;
+        const correspondencia = /^(\d+)\s+x\s+(.+?)\s+—/.exec(texto);
+        if (!correspondencia) return null;
+
+        const produto = catalogoPDV.find(
+          itemCatalogo =>
+            itemCatalogo.nome.toLowerCase() === correspondencia[2].toLowerCase()
+        );
+
+        return produto
+          ? { produto: produto, quantidade: Number(correspondencia[1]) }
+          : null;
+      })
+      .filter(Boolean);
+
+    if (itensVenda.some(item => item.quantidade > item.produto.estoque)) {
+      alert("Estoque insuficiente para salvar esta venda.");
+      return;
+    }
+
+    salvarVendaOriginal();
+
+    const depois = JSON.parse(localStorage.getItem("historicoPDV") || "[]").length;
+    if (depois > antes) {
+      itensVenda.forEach(item => {
+        item.produto.estoque -= item.quantidade;
+      });
+
+      localStorage.setItem("catalogoProdutosPDV", JSON.stringify(catalogoPDV));
+      atualizarCatalogo();
+      document.getElementById("resultado").textContent +=
+        " Estoque atualizado.";
+    }
+  };
+
+  atualizarCatalogo();
+</script>
+<script>
+  const painelAlertasEstoque = document.createElement("div");
+  painelAlertasEstoque.innerHTML =
+    '<h3>Alertas de estoque</h3><ul id="listaAlertasEstoque"></ul>';
+
+  const areaEstoqueAtual = document.getElementById("botaoAdicionarEstoque").parentElement;
+  areaEstoqueAtual.insertAdjacentElement("afterend", painelAlertasEstoque);
+
+  function mostrarAlertasEstoque() {
+    const produtos = JSON.parse(
+      localStorage.getItem("catalogoProdutosPDV") || "[]"
+    );
+    const lista = document.getElementById("listaAlertasEstoque");
+    lista.innerHTML = "";
+
+    const produtosBaixos = produtos.filter(produto => Number(produto.estoque) <= 3);
+
+    if (produtosBaixos.length === 0) {
+      const item = document.createElement("li");
+      item.textContent = "Nenhum produto com estoque baixo.";
+      lista.appendChild(item);
+      return;
+    }
+
+    produtosBaixos.forEach(produto => {
+      const item = document.createElement("li");
+      const quantidade = Number(produto.estoque);
+
+      item.textContent = quantidade === 0
+        ? produto.nome + ": sem estoque"
+        : produto.nome + ": estoque baixo (" + quantidade + " unidade(s))";
+
+      lista.appendChild(item);
+    });
+  }
+
+  const atualizarCatalogoComEstoque = window.atualizarCatalogo;
+  window.atualizarCatalogo = function() {
+    atualizarCatalogoComEstoque();
+    mostrarAlertasEstoque();
+  };
+
+  mostrarAlertasEstoque();
+</script>
+<script>
+(() => {
+  const tabelaHistoricoPDV = document.querySelector("#historico").closest("table");
+  const botaoExportarHistoricoPDV = document.createElement("button");
+
+  botaoExportarHistoricoPDV.type = "button";
+  botaoExportarHistoricoPDV.textContent = "Exportar histórico para Excel";
+  tabelaHistoricoPDV.insertAdjacentElement("afterend", botaoExportarHistoricoPDV);
+
+  botaoExportarHistoricoPDV.addEventListener("click", function() {
+    const vendas = JSON.parse(localStorage.getItem("historicoPDV") || "[]");
+
+    if (vendas.length === 0) {
+      alert("Ainda não há vendas no histórico para exportar.");
+      return;
+    }
+
+    const linhas = [
+      ["Data", "Itens", "Desconto", "Total", "Pagamento"],
+      ...vendas.map(venda => [
+        venda.data,
+        venda.itens,
+        venda.desconto || "0%",
+        venda.total,
+        venda.forma
+      ])
+    ];
+
+    const csv = "\uFEFF" + linhas.map(linha =>
+      linha.map(valor =>
+        '"' + String(valor ?? "").replace(/"/g, '""') + '"'
+      ).join(";")
+    ).join("\r\n");
+
+    const arquivo = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(arquivo);
+    link.download = "historico-pdv.csv";
+    link.click();
+
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  });
+})();
+</script>
+<script>
+(() => {
+  const resumoPDV = document.createElement("section");
+  resumoPDV.innerHTML = `
+    <h2>Resumo das vendas</h2>
+    <p>Vendas registradas: <strong id="quantidadeVendasResumo">0</strong></p>
+    <p>Total vendido: <strong id="totalVendidoResumo">R$ 0,00</strong></p>
+  `;
+
+  const tabela = document.querySelector("#historico").closest("table");
+  tabela.insertAdjacentElement("beforebegin", resumoPDV);
+
+  function atualizarResumoPDV() {
+    const vendas = JSON.parse(localStorage.getItem("historicoPDV") || "[]");
+    const totalVendido = vendas.reduce((soma, venda) => {
+      const valor = String(venda.total || "")
+        .replace("R$", "")
+        .trim()
+        .replace(/\./g, "")
+        .replace(",", ".");
+      return soma + (Number(valor) || 0);
+    }, 0);
+
+    document.getElementById("quantidadeVendasResumo").textContent = vendas.length;
+    document.getElementById("totalVendidoResumo").textContent =
+      totalVendido.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+      });
+  }
+
+  const mostrarHistoricoAnterior = window.mostrarHistorico;
+  window.mostrarHistorico = function() {
+    mostrarHistoricoAnterior();
+    atualizarResumoPDV();
+  };
+
+  window.mostrarHistorico();
+})();
+</script>
+<script>
+(() => {
+  const totalVendidoResumo = document.getElementById("totalVendidoResumo");
+
+  totalVendidoResumo.parentElement.insertAdjacentHTML(
+    "afterend",
+    '<p>Vendas de hoje: <strong id="quantidadeVendasHojePDV">0</strong></p>' +
+    '<p>Total vendido hoje: <strong id="totalVendidoHojePDV">R$ 0,00</strong></p>'
+  );
+
+  function atualizarResumoDoDia() {
+    const vendas = JSON.parse(localStorage.getItem("historicoPDV") || "[]");
+    const hoje = new Date().toLocaleDateString("pt-BR");
+    const vendasHoje = vendas.filter(venda =>
+      String(venda.data || "").startsWith(hoje)
+    );
+
+    const totalHoje = vendasHoje.reduce((soma, venda) => {
+      const valor = String(venda.total || "")
+        .replace("R$", "")
+        .trim()
+        .replace(/\./g, "")
+        .replace(",", ".");
+      return soma + (Number(valor) || 0);
+    }, 0);
+
+    document.getElementById("quantidadeVendasHojePDV").textContent =
+      vendasHoje.length;
+    document.getElementById("totalVendidoHojePDV").textContent =
+      totalHoje.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+      });
+  }
+
+  const mostrarHistoricoComResumo = window.mostrarHistorico;
+  window.mostrarHistorico = function() {
+    mostrarHistoricoComResumo();
+    atualizarResumoDoDia();
+  };
+
+  window.mostrarHistorico();
+})();
+</script>
+<script>
+(() => {
+  document.getElementById("totalVendidoResumo").parentElement.insertAdjacentHTML(
+    "afterend",
+    '<p>Valor médio por venda: <strong id="mediaVendaPDV">R$ 0,00</strong></p>'
+  );
+
+  function atualizarMediaVenda() {
+    const vendas = JSON.parse(localStorage.getItem("historicoPDV") || "[]");
+
+    const total = vendas.reduce((soma, venda) => {
+      const valor = String(venda.total || "")
+        .replace("R$", "")
+        .trim()
+        .replace(/\./g, "")
+        .replace(",", ".");
+      return soma + (Number(valor) || 0);
+    }, 0);
+
+    const media = vendas.length ? total / vendas.length : 0;
+
+    document.getElementById("mediaVendaPDV").textContent =
+      media.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+      });
+  }
+
+  const mostrarHistoricoComMedia = window.mostrarHistorico;
+  window.mostrarHistorico = function() {
+    mostrarHistoricoComMedia();
+    atualizarMediaVenda();
+  };
+
+  window.mostrarHistorico();
+})();
+</script>
+<script>
+(() => {
+  const botaoCsv = Array.from(document.querySelectorAll("button"))
+    .find(botao => botao.textContent === "Exportar histórico para Excel");
+
+  if (!botaoCsv) return;
+
+  const botaoBackup = document.createElement("button");
+  botaoBackup.type = "button";
+  botaoBackup.textContent = "Baixar cópia de segurança";
+  botaoCsv.insertAdjacentElement("afterend", botaoBackup);
+
+  botaoBackup.addEventListener("click", function() {
+    const backup = {
+      criadoEm: new Date().toLocaleString("pt-BR"),
+      produtos: JSON.parse(localStorage.getItem("catalogoProdutosPDV") || "[]"),
+      vendas: JSON.parse(localStorage.getItem("historicoPDV") || "[]")
+    };
+
+    const arquivo = new Blob(
+      [JSON.stringify(backup, null, 2)],
+      { type: "application/json;charset=utf-8" }
+    );
+
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(arquivo);
+    link.download = "backup-meu-pdv.json";
+    link.click();
+
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  });
+})();
+</script>
+<script>
+(() => {
+  const botaoBackup = Array.from(document.querySelectorAll("button"))
+    .find(botao => botao.textContent === "Baixar cópia de segurança");
+
+  if (!botaoBackup) return;
+
+  const botaoRestaurar = document.createElement("button");
+  botaoRestaurar.type = "button";
+  botaoRestaurar.textContent = "Restaurar cópia de segurança";
+  botaoBackup.insertAdjacentElement("afterend", botaoRestaurar);
+
+  const seletorArquivo = document.createElement("input");
+  seletorArquivo.type = "file";
+  seletorArquivo.accept = ".json,application/json";
+  seletorArquivo.style.display = "none";
+  document.body.appendChild(seletorArquivo);
+
+  botaoRestaurar.addEventListener("click", function() {
+    seletorArquivo.click();
+  });
+
+  seletorArquivo.addEventListener("change", function() {
+    const arquivo = seletorArquivo.files[0];
+    if (!arquivo) return;
+
+    const leitor = new FileReader();
+
+    leitor.onload = function() {
+      try {
+        const backup = JSON.parse(leitor.result);
+
+        if (!Array.isArray(backup.produtos) || !Array.isArray(backup.vendas)) {
+          alert("Esse arquivo não parece ser uma cópia válida do PDV.");
+          return;
+        }
+
+        const confirmado = confirm(
+          "Restaurar vai substituir os produtos e o histórico atuais deste navegador. Deseja continuar?"
+        );
+
+        if (!confirmado) return;
+
+        localStorage.setItem(
+          "catalogoProdutosPDV",
+          JSON.stringify(backup.produtos)
+        );
+        localStorage.setItem(
+          "historicoPDV",
+          JSON.stringify(backup.vendas)
+        );
+
+        alert("Cópia restaurada. O PDV será atualizado.");
+        location.reload();
+      } catch (erro) {
+        alert("Não consegui ler esse arquivo. Selecione o backup JSON do PDV.");
+      }
+    };
+
+    leitor.readAsText(arquivo);
+    seletorArquivo.value = "";
+  });
+})();
+</script>
+<script>
+(() => {
+  const seletorProdutosBusca = document.getElementById("produtoCadastrado");
+  const rotuloSeletorBusca = seletorProdutosBusca.parentElement;
+  const campoBuscaProdutos = document.createElement("label");
+
+  campoBuscaProdutos.innerHTML =
+    'Buscar produto: <input id="buscaProdutoPDV" type="search" ' +
+    'placeholder="Digite parte do nome">';
+
+  rotuloSeletorBusca.insertAdjacentElement("beforebegin", campoBuscaProdutos);
+
+  function normalizarBuscaPDV(texto) {
+    return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  }
+
+  function filtrarProdutosPDV() {
+    const termo = normalizarBuscaPDV(
+      document.getElementById("buscaProdutoPDV").value.trim()
+    );
+
+    Array.from(seletorProdutosBusca.options).forEach((opcao, indice) => {
+      if (indice === 0) {
+        opcao.hidden = false;
+      } else {
+        opcao.hidden = !normalizarBuscaPDV(opcao.textContent).includes(termo);
+      }
+    });
+  }
+
+  document.getElementById("buscaProdutoPDV")
+    .addEventListener("input", filtrarProdutosPDV);
+
+  const atualizarCatalogoComBusca = window.atualizarCatalogo;
+  window.atualizarCatalogo = function() {
+    atualizarCatalogoComBusca();
+    filtrarProdutosPDV();
+  };
+
+  window.atualizarCatalogo();
+})();
+</script>
+<script>
+(() => {
+  const seletor = document.getElementById("produtoCadastrado");
+  const campoBusca = document.getElementById("buscaProdutoPDV");
+
+  function normalizar(texto) {
+    return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  }
+
+  function reconstruirLista() {
+    const produtos = JSON.parse(
+      localStorage.getItem("catalogoProdutosPDV") || "[]"
+    );
+    const termo = normalizar(campoBusca.value.trim());
+    const valorSelecionado = seletor.value;
+
+    seletor.innerHTML = '<option value="">Selecione um produto</option>';
+
+    produtos.forEach((produto, indice) => {
+      if (normalizar(produto.nome).includes(termo)) {
+        const opcao = document.createElement("option");
+        opcao.value = indice;
+        opcao.textContent =
+          produto.nome + " — R$ " +
+          Number(produto.preco).toFixed(2).replace(".", ",") +
+          " — estoque: " + Number(produto.estoque || 0);
+        seletor.appendChild(opcao);
+      }
+    });
+
+    if (Array.from(seletor.options).some(opcao => opcao.value === valorSelecionado)) {
+      seletor.value = valorSelecionado;
+    }
+
+    seletor.dispatchEvent(new Event("change"));
+  }
+
+  campoBusca.addEventListener("input", reconstruirLista);
+
+  const atualizarCatalogoAnteriorBusca = window.atualizarCatalogo;
+  window.atualizarCatalogo = function() {
+    atualizarCatalogoAnteriorBusca();
+    reconstruirLista();
+  };
+
+  reconstruirLista();
+})();
+</script>
+<script>
+(() => {
+  const campoBusca = document.getElementById("buscaProdutoPDV");
+  const seletor = document.getElementById("produtoCadastrado");
+
+  function normalizar(texto) {
+    return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  }
+
+  campoBusca.addEventListener("input", function() {
+    const termo = normalizar(campoBusca.value.trim());
+    if (!termo) return;
+
+    const produtos = JSON.parse(
+      localStorage.getItem("catalogoProdutosPDV") || "[]"
+    );
+
+    const encontrados = produtos
+      .map((produto, indice) => ({ produto, indice }))
+      .filter(item => normalizar(item.produto.nome).includes(termo));
+
+    if (encontrados.length === 1) {
+      seletor.value = String(encontrados[0].indice);
+      seletor.dispatchEvent(new Event("change"));
+    }
+  });
+})();
+</script>
+<script>
+(() => {
+  const tabela = document.querySelector("#historico").closest("table");
+  const controles = document.createElement("div");
+
+  controles.innerHTML = `
+    <h3>Filtrar histórico por data</h3>
+    <label>Data:
+      <input id="dataFiltroPDV" type="date">
+    </label>
+    <button type="button" id="filtrarDataPDV">Filtrar data</button>
+    <button type="button" id="mostrarTodasVendasPDV">Mostrar todas</button>
+  `;
+
+  tabela.insertAdjacentElement("beforebegin", controles);
+
+  document.getElementById("filtrarDataPDV").addEventListener("click", function() {
+    const valor = document.getElementById("dataFiltroPDV").value;
+
+    if (!valor) {
+      alert("Escolha uma data primeiro.");
+      return;
+    }
+
+    const [ano, mes, dia] = valor.split("-");
+    const dataProcurada = dia + "/" + mes + "/" + ano;
+
+    document.querySelectorAll("#historico tr").forEach(linha => {
+      const dataVenda = linha.cells[0].textContent;
+      linha.style.display = dataVenda.startsWith(dataProcurada) ? "" : "none";
+    });
+  });
+
+  document.getElementById("mostrarTodasVendasPDV").addEventListener("click", function() {
+    document.getElementById("dataFiltroPDV").value = "";
+    document.querySelectorAll("#historico tr").forEach(linha => {
+      linha.style.display = "";
+    });
+  });
+})();
+</script>
+<script>
+(() => {
+  const botaoFiltrar = document.getElementById("filtrarDataPDV");
+  const botaoExportarDia = document.createElement("button");
+
+  botaoExportarDia.type = "button";
+  botaoExportarDia.textContent = "Exportar vendas dessa data";
+  botaoFiltrar.insertAdjacentElement("afterend", botaoExportarDia);
+
+  botaoExportarDia.addEventListener("click", function() {
+    const dataISO = document.getElementById("dataFiltroPDV").value;
+
+    if (!dataISO) {
+      alert("Escolha uma data primeiro.");
+      return;
+    }
+
+    const [ano, mes, dia] = dataISO.split("-");
+    const dataProcurada = dia + "/" + mes + "/" + ano;
+    const vendas = JSON.parse(localStorage.getItem("historicoPDV") || "[]")
+      .filter(venda => String(venda.data || "").startsWith(dataProcurada));
+
+    if (vendas.length === 0) {
+      alert("Não há vendas nessa data para exportar.");
+      return;
+    }
+
+    const linhas = [
+      ["Data", "Itens", "Desconto", "Total", "Pagamento"],
+      ...vendas.map(venda => [
+        venda.data,
+        venda.itens,
+        venda.desconto || "0%",
+        venda.total,
+        venda.forma
+      ])
+    ];
+
+    const csv = "\uFEFF" + linhas.map(linha =>
+      linha.map(valor =>
+        '"' + String(valor ?? "").replace(/"/g, '""') + '"'
+      ).join(";")
+    ).join("\r\n");
+
+    const arquivo = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(arquivo);
+    link.download = "vendas-" + dataISO + ".csv";
+    link.click();
+
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  });
+})();
+</script>
+<script>
+(() => {
+  const botaoMostrarTodas = document.getElementById("mostrarTodasVendasPDV");
+  const seletorPagamento = document.createElement("select");
+  const rotuloPagamento = document.createElement("label");
+
+  seletorPagamento.id = "filtroPagamentoPDV";
+  seletorPagamento.innerHTML = `
+    <option value="todas">Todas as formas</option>
+    <option value="dinheiro">Dinheiro</option>
+    <option value="pix">Pix</option>
+    <option value="cartao">Cartão</option>
+  `;
+
+  rotuloPagamento.append("Forma de pagamento: ", seletorPagamento);
+  botaoMostrarTodas.insertAdjacentElement("afterend", rotuloPagamento);
+
+  const botaoFiltrarPagamento = document.createElement("button");
+  botaoFiltrarPagamento.type = "button";
+  botaoFiltrarPagamento.textContent = "Filtrar pagamento";
+  rotuloPagamento.insertAdjacentElement("afterend", botaoFiltrarPagamento);
+
+  function filtrarHistoricoPorDataEPagamento() {
+    const dataISO = document.getElementById("dataFiltroPDV").value;
+    let dataProcurada = "";
+
+    if (dataISO) {
+      const [ano, mes, dia] = dataISO.split("-");
+      dataProcurada = dia + "/" + mes + "/" + ano;
+    }
+
+    const pagamento = seletorPagamento.value;
+
+    document.querySelectorAll("#historico tr").forEach(linha => {
+      const dataOk =
+        !dataProcurada || linha.cells[0].textContent.startsWith(dataProcurada);
+      const pagamentoOk =
+        pagamento === "todas" || linha.cells[4].textContent === pagamento;
+
+      linha.style.display = dataOk && pagamentoOk ? "" : "none";
+    });
+  }
+
+  document.getElementById("filtrarDataPDV")
+    .addEventListener("click", filtrarHistoricoPorDataEPagamento);
+  botaoFiltrarPagamento.addEventListener(
+    "click",
+    filtrarHistoricoPorDataEPagamento
+  );
+  botaoMostrarTodas.addEventListener("click", function() {
+    seletorPagamento.value = "todas";
+  });
+})();
+</script>
+<script>
+(() => {
+  const quadroFormasPagamento = document.createElement("section");
+  quadroFormasPagamento.innerHTML = `
+    <h3>Total por forma de pagamento</h3>
+    <p>Dinheiro: <strong id="totalDinheiroPDV">R$ 0,00</strong></p>
+    <p>Pix: <strong id="totalPixPDV">R$ 0,00</strong></p>
+    <p>Cartão: <strong id="totalCartaoPDV">R$ 0,00</strong></p>
+  `;
+
+  document.getElementById("mediaVendaPDV").parentElement
+    .insertAdjacentElement("afterend", quadroFormasPagamento);
+
+  function converterValor(valor) {
+    return Number(
+      String(valor || "")
+        .replace("R$", "")
+        .trim()
+        .replace(/\./g, "")
+        .replace(",", ".")
+    ) || 0;
+  }
+
+  function atualizarTotaisPorForma() {
+    const vendas = JSON.parse(localStorage.getItem("historicoPDV") || "[]");
+    const totais = { dinheiro: 0, pix: 0, cartao: 0 };
+
+    vendas.forEach(venda => {
+      if (Object.prototype.hasOwnProperty.call(totais, venda.forma)) {
+        totais[venda.forma] += converterValor(venda.total);
+      }
+    });
+
+    const formatar = valor =>
+      valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+    document.getElementById("totalDinheiroPDV").textContent =
+      formatar(totais.dinheiro);
+    document.getElementById("totalPixPDV").textContent =
+      formatar(totais.pix);
+    document.getElementById("totalCartaoPDV").textContent =
+      formatar(totais.cartao);
+  }
+
+  const mostrarHistoricoAnteriorPagamento = window.mostrarHistorico;
+  window.mostrarHistorico = function() {
+    mostrarHistoricoAnteriorPagamento();
+    atualizarTotaisPorForma();
+  };
+
+  window.mostrarHistorico();
+})();
+</script>
+<script>
+(() => {
+  const resumoPagamentoDia = document.createElement("section");
+  resumoPagamentoDia.innerHTML = `
+    <h3>Totais da data selecionada</h3>
+    <p>Dinheiro: <strong id="dinheiroDiaPDV">R$ 0,00</strong></p>
+    <p>Pix: <strong id="pixDiaPDV">R$ 0,00</strong></p>
+    <p>Cartão: <strong id="cartaoDiaPDV">R$ 0,00</strong></p>
+    <p>Total do dia: <strong id="totalDiaPDV">R$ 0,00</strong></p>
+  `;
+
+  document.getElementById("dataFiltroPDV").parentElement.parentElement
+    .insertAdjacentElement("afterend", resumoPagamentoDia);
+
+  function converterValorDia(valor) {
+    return Number(
+      String(valor || "")
+        .replace("R$", "")
+        .trim()
+        .replace(/\./g, "")
+        .replace(",", ".")
+    ) || 0;
+  }
+
+  function atualizarResumoDoDiaSelecionado() {
+    const valorData = document.getElementById("dataFiltroPDV").value;
+    const ids = {
+      dinheiro: "dinheiroDiaPDV",
+      pix: "pixDiaPDV",
+      cartao: "cartaoDiaPDV"
+    };
+    const totais = { dinheiro: 0, pix: 0, cartao: 0 };
+
+    if (valorData) {
+      const [ano, mes, dia] = valorData.split("-");
+      const dataProcurada = dia + "/" + mes + "/" + ano;
+      const vendas = JSON.parse(localStorage.getItem("historicoPDV") || "[]")
+        .filter(venda => String(venda.data || "").startsWith(dataProcurada));
+
+      vendas.forEach(venda => {
+        if (Object.prototype.hasOwnProperty.call(totais, venda.forma)) {
+          totais[venda.forma] += converterValorDia(venda.total);
+        }
+      });
+    }
+
+    const formatar = valor =>
+      valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+    document.getElementById(ids.dinheiro).textContent = formatar(totais.dinheiro);
+    document.getElementById(ids.pix).textContent = formatar(totais.pix);
+    document.getElementById(ids.cartao).textContent = formatar(totais.cartao);
+    document.getElementById("totalDiaPDV").textContent =
+      formatar(totais.dinheiro + totais.pix + totais.cartao);
+  }
+
+  document.getElementById("dataFiltroPDV")
+    .addEventListener("change", atualizarResumoDoDiaSelecionado);
+  document.getElementById("filtrarDataPDV")
+    .addEventListener("click", atualizarResumoDoDiaSelecionado);
+  document.getElementById("filtrarPagamentoPDV")
+    .addEventListener("click", atualizarResumoDoDiaSelecionado);
+
+  const mostrarHistoricoAnteriorResumoDia = window.mostrarHistorico;
+  window.mostrarHistorico = function() {
+    mostrarHistoricoAnteriorResumoDia();
+    atualizarResumoDoDiaSelecionado();
+  };
+
+  atualizarResumoDoDiaSelecionado();
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+window.pdvSupabase = window.supabase.createClient(
+  "https://bydetwmmvuwcsbdmdupf.supabase.co/rest/v1/",
+  "sb_publishable_9fywjAzjuxMlTArFUe6O4g_FrM2rDmI"
+);
+</script>
+<div id="pdvLogin" style="position:fixed;inset:0;z-index:999999;background:#eef4ff;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif">
+  <form id="pdvLoginForm" style="background:white;padding:24px;border-radius:12px;width:320px">
+    <h2>Entrar no PDV</h2>
+    <label>E-mail</label>
+    <input id="pdvLoginEmail" type="email" required style="width:100%;padding:10px;box-sizing:border-box">
+    <br><br>
+    <label>Senha</label>
+    <input id="pdvLoginSenha" type="password" required style="width:100%;padding:10px;box-sizing:border-box">
+    <br><br>
+    <button type="submit">Entrar</button>
+    <p id="pdvLoginMensagem"></p>
+  </form>
+</div>
+
+<script>
+(() => {
+  const formulario = document.getElementById("pdvLoginForm");
+  const mensagem = document.getElementById("pdvLoginMensagem");
+  const telaLogin = document.getElementById("pdvLogin");
+  const cliente = window.pdvSupabase;
+
+  formulario.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+
+    if (!cliente) {
+      mensagem.textContent = "A conexão com o banco não foi carregada.";
+      return;
+    }
+
+    mensagem.textContent = "Entrando...";
+
+    const { error } = await cliente.auth.signInWithPassword({
+      email: document.getElementById("pdvLoginEmail").value,
+      password: document.getElementById("pdvLoginSenha").value
+    });
+
+    if (error) {
+      mensagem.textContent = "mensagem.textContent = "Erro: " + error.message;";
+      return;
+    }
+
+    telaLogin.remove();
+  });
+
+  if (cliente) {
+    cliente.auth.getSession().then(({ data }) => {
+      if (data.session) telaLogin.remove();
+    });
+  }
+})();
+</script>
+</body>
+</html>
